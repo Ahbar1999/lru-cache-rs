@@ -33,7 +33,7 @@ impl<T> Node<T> {
 }
 
 
-struct DoublyLL<T> {
+pub struct DoublyLL<T> {
     head: NodeRef<T>,
     tail: NodeRef<T>,
 }
@@ -44,6 +44,14 @@ impl<T> DoublyLL<T> {
             head: None,
             tail: None,
         }
+    }
+
+    pub fn peek_front(&self) -> Option<&T> {
+        self.head.as_ref().map(|head| unsafe { &(*head.as_ptr()).val })
+    }
+
+    pub fn peek_back(&self) -> Option<&T> {
+        self.tail.as_ref().map(|tail| unsafe { &(*tail.as_ptr()).val })
     }
 
     pub fn push_front(&mut self, val: T) {
@@ -63,8 +71,8 @@ impl<T> DoublyLL<T> {
 
         self.tail.take().map(|old_tail| {
             // modify links
-            new_tail.as_ref().unwrap().borrow_mut().next = old_tail.borrow().next.clone();
-            old_tail.borrow_mut().prev = new_tail.clone(); 
+            new_tail.as_ref().unwrap().borrow_mut().prev = old_tail.borrow().next.clone();
+            old_tail.borrow_mut().next = new_tail.clone(); 
         }); 
         
         self.tail = new_tail;
