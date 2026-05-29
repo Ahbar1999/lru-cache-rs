@@ -10,8 +10,16 @@ mod tests {
         // [[2],[1,1],[2,2],[1],[3,3],[2],[4,4],[1],[3],[4]]
         let mut dll = DoublyLL::new();
         dll.push_back(2);
+        assert_eq!(dll.head.as_ref().unwrap().borrow().val, 2);
+        assert_eq!(dll.tail.as_ref().unwrap().borrow().val, 2);
+
         dll.push_back(3);
+        assert_eq!(dll.head.as_ref().unwrap().borrow().val, 2);
+        assert_eq!(dll.tail.as_ref().unwrap().borrow().val, 3);
+        
         dll.push_front(1);
+        assert_eq!(dll.head.as_ref().unwrap().borrow().val, 1);
+        assert_eq!(dll.tail.as_ref().unwrap().borrow().val, 3);
         
         assert_eq!(dll.peek_front(), Some(&1));
         assert_eq!(dll.peek_back(), Some(&3));
@@ -23,11 +31,18 @@ mod tests {
         // [[2],[1,1],[2,2],[1],[3,3],[2],[4,4],[1],[3],[4]]
         let mut dll = DoublyLL::new();
         dll.push_back(2);
+        // dll.inspect_list();
+        
         dll.push_back(3);
+        // dll.inspect_list();
         dll.push_front(1);
+
+        // dll.inspect_list();
         
         // 1 , 2 , 3
         dll.erase(&1).ok();
+
+
         // 2, 3
         assert_eq!(dll.peek_front(), Some(&2));
         assert_eq!(dll.peek_back(), Some(&3));

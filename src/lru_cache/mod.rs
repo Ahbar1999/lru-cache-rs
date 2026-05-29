@@ -2,6 +2,7 @@ use std::rc::Rc;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::cell::RefCell;
+use std::fmt::Debug; 
 
 // Single Threaded Doubly Linked List
 /* Requirements
@@ -9,19 +10,20 @@ use std::cell::RefCell;
  * O(1) deletion anywhere in the list
  * */
 
-type NodeRef<T: Clone> = Option<Rc<RefCell<Node<T>>>>;
+type NodeRef<T> = Option<Rc<RefCell<Node<T>>>>;
 
 // reason for writing a constructor macro: we can impl on foreign types
 macro_rules! node_ref {
     ($node:expr) => {
-        Some(Rc::new(RefCell::new($node)))
+        Rc::new(RefCell::new($node))
     }
 }
 
-struct Node<T: Clone> {
-    val: T,
-    prev: NodeRef<T>,
-    next: NodeRef<T>
+#[derive(PartialEq, Debug)]
+pub struct Node<T: Clone> {
+    pub val: T,
+    pub prev: NodeRef<T>,
+    pub next: NodeRef<T>
 }
 
 impl<T> Node<T> 
@@ -36,16 +38,16 @@ impl<T> Node<T>
 }
 
 
-pub struct DoublyLL<T: Hash + Eq + Clone> {
-    head: NodeRef<T>,
-    tail: NodeRef<T>,
+pub struct DoublyLL<T: Hash + Eq + Clone + Debug> {
+    pub head: NodeRef<T>,
+    pub tail: NodeRef<T>,
     // for our purposes we can assume all nodes are unique in this list
     // since it is being used for a key-value pair cache
     map: HashMap<T, NodeRef<T>>,
 }
 
 impl<T> DoublyLL<T> 
-    where T: Hash + Eq + Clone {
+    where T: Hash + Eq + Clone + Debug {
     pub fn new() -> Self {
         Self {
             head: None,
@@ -62,38 +64,67 @@ impl<T> DoublyLL<T>
         self.tail.as_ref().map(|tail| unsafe { &(*tail.as_ptr()).val })
     }
 
-    pub fn erase(&mut self, key: &T) -> Result<(), &str> { 
+    pub fn erase(&mut self, key: &T) -> Result<T, &str> { 
         if !self.map.contains_key(key) {
             return Err("Key Not Found!");
         }
+        // println!("checkpiont 1"); 
+        let node = self.map.remove(key).unwrap().unwrap();
         
-        let node = self.map.get_mut(key).unwrap().take().unwrap();
+        if self.head.as_ref().unwrap().borrow().val == node.borrow().val {
+            self.head = node.borrow().next.clone();
+        }
+
+        if self.tail.as_ref().unwrap().borrow().val == node.borrow().val {
+            self.tail = node.borrow().prev.clone();    
+        }
         
+        // let node = self.map.remove(key).unwrap().unwrap();
         // prev->next = node->next
-        node.borrow_mut().prev.as_ref().map(|prev_node| { prev_node.borrow_mut().next = node.borrow_mut().next.clone(); }); 
+        node.borrow().prev.as_ref().map(|prev_node| { prev_node.borrow_mut().next = node.borrow().next.clone(); }); 
 
         // node->next = node->prev
-        node.borrow_mut().next.as_ref().map(|next_node| { next_node.borrow_mut().prev = node.borrow_mut().prev.clone(); }); 
-
-        self.map.remove(key);
-
-        todo!("update self.head and self.tail");
+        node.borrow().next.as_ref().map(|next_node| { next_node.borrow_mut().prev = node.borrow().prev.clone(); }); 
         
-        Ok(())
+        // remove references to other nodes for drop check 
+        node.borrow_mut().next = None;
+        node.borrow_mut().prev = None;
+
+        // println!("{}", Rc::strong_count(&node));
+
+        Ok(Rc::try_unwrap(node).expect("Dangling References to the erased Node found.").into_inner().val)
     }
 
     pub fn push_front(&mut self, val: T) {
         let new_head = node_ref!(Node::new(val.clone()));
-
+        
         self.head.take().map(|old_head| {
             // modify links
-            new_head.as_ref().unwrap().borrow_mut().next = old_head.borrow().next.clone();
-            old_head.borrow_mut().prev = new_head.clone(); 
+            new_head.borrow_mut().next = Some(old_head.clone());
+            old_head.borrow_mut().prev = Some(new_head.clone()); 
         }); 
 
-        self.map.insert(val, new_head.clone());
+        self.map.insert(val, Some(new_head.clone()));
         
-        self.head = new_head; 
+        self.head = Some(new_head); 
+
+        if self.tail.is_none() {
+            self.tail = self.head.clone();
+        }
+    }
+
+    pub fn inspect_list(&self) {
+        let mut curr = self.head.clone();
+        
+        loop {
+            match curr {
+                Some(node) => { 
+                    println!("{:?}", node);
+                    curr = node.borrow().next.clone();
+                },
+                None => { break; }
+            }
+        }
     }
 
     pub fn push_back(&mut self, val: T) {
@@ -101,13 +132,17 @@ impl<T> DoublyLL<T>
 
         self.tail.take().map(|old_tail| {
             // modify links
-            new_tail.as_ref().unwrap().borrow_mut().prev = old_tail.borrow().next.clone();
-            old_tail.borrow_mut().next = new_tail.clone(); 
+            new_tail.borrow_mut().prev = Some(old_tail.clone());
+            old_tail.borrow_mut().next = Some(new_tail.clone()); 
         }); 
         
-        self.map.insert(val, new_tail.clone());
+        self.map.insert(val, Some(new_tail.clone()));
         
-        self.tail = new_tail;
+        self.tail = Some(new_tail);
+
+        if self.head.is_none() {
+            self.head = self.tail.clone(); 
+        }
     }
 }
 
